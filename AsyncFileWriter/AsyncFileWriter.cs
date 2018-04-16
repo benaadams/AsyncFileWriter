@@ -131,7 +131,7 @@ namespace Open
 			if (bytes == null) throw new ArgumentNullException(nameof(bytes));
 			Contract.EndContractBlock();
 
-			if (_disposer != null) throw new ObjectDisposedException(GetType().ToString());
+			if (Volatile.Read(ref _disposed) == 1) throw new ObjectDisposedException(GetType().ToString());
 			AssertWritable(!_declinePermanently);
 
 			while (!_channel.Writer.TryWrite(bytes))
@@ -186,25 +186,24 @@ namespace Open
 		#endregion
 
 		#region IDisposable Support
-		Lazy<Task> _disposer;
+		int _disposed;
 
-		protected Task DisposeAsync(bool calledExplicitly)
-			// EnsureInitialized is optimistic.
-			=> LazyInitializer.EnsureInitialized(ref _disposer,
-				// Lazy is pessimistic.
-				() => new Lazy<Task>(() => Task.Run(async () =>
+		protected async Task DisposeAsync(bool calledExplicitly)
+		{
+			if (Interlocked.Exchange(ref _disposed, 1) == 0)
+			{
+				if (calledExplicitly)
 				{
-					if (calledExplicitly)
-					{
-						await Complete().ConfigureAwait(false);
-					}
-					else
-					{
-						// Left for the GC? :(
-						_channel.Writer.TryComplete(); // First try and mark as complete as if normal.
-						_channel.Writer.TryComplete(new ObjectDisposedException(GetType().ToString()));
-					}
-				}))).Value;
+					await Complete().ConfigureAwait(false);
+				}
+				else
+				{
+					// Left for the GC? :(
+					_channel.Writer.TryComplete(); // First try and mark as complete as if normal.
+					_channel.Writer.TryComplete(new ObjectDisposedException(GetType().ToString()));
+				}
+			}
+		}
 
 		public async Task DisposeAsync()
 		{
