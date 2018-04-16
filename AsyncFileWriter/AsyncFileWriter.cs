@@ -60,14 +60,14 @@ namespace Open
 		async Task ProcessBytes()
 		{
 			var reader = _channel.Reader;
-			using (var fs = new FileStream(FilePath, FileMode.Append, FileAccess.Write, FileShareMode, bufferSize: 4096 * 4 /*, useAsync: true */))
+			using (var fs = new FileStream(FilePath, FileMode.Append, FileAccess.Write, FileShareMode, bufferSize: 4096 * 4 , useAsync: true))
 			{
 				while (await reader.WaitToReadAsync().ConfigureAwait(false))
 				{
 					while (reader.TryRead(out byte[] bytes))
 					{
-						//await fs.WriteAsync(bytes, 0, bytes.Length).ConfigureAwait(false);
-						fs.Write(bytes, 0, bytes.Length);
+						await fs.WriteAsync(bytes, 0, bytes.Length).ConfigureAwait(false);
+						//fs.Write(bytes, 0, bytes.Length);
 					}
 				}
 
